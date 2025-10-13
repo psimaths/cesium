@@ -25,7 +25,7 @@ def convert_to_tiles(input_tif, output_dir='tiles'):
     
     gdal2tiles_cmd = [
         'gdal2tiles.py',
-        '--zoom=0-18',  # Zoom levels 0-18
+        '--zoom=0-22',  # Zoom levels 0-22 for high resolution
         '--processes=4',  # Use 4 processes for faster generation
         '--webviewer=none',  # No web viewer (we have our own)
         '--resampling=lanczos',  # High quality resampling

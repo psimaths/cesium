@@ -77,26 +77,22 @@
                 
                 const map = L.map('map', {
                     center: [centerLat, centerLon],
-                    zoom: 13,
-                    minZoom: 0,
-                    maxZoom: 18
+                    zoom: 13
                 });
                 
                 // Add OpenStreetMap as base layer
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '© OpenStreetMap contributors',
-                    opacity: 0.3,
-                    maxZoom: 19
+                    opacity: 0.3
                 }).addTo(map);
                 
-                // Add custom tile layer (standard XYZ format)
+                // Add custom tile layer (TMS format - gdal2tiles default)
                 const customTiles = L.tileLayer(window.location.origin + '/{z}/{x}/{y}.png', {
-                    tms: false,  // Standard XYZ
+                    tms: true,  // TMS format (inverted Y axis) - REQUIRED for gdal2tiles
                     opacity: 1.0,
                     attribution: 'Custom Map',
-                    minZoom: 0,
-                    maxZoom: 18,
-                    errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+                    maxNativeZoom: 18,  // Tiles only exist up to zoom 18
+                    maxZoom: 25  // But allow zooming further (will scale tiles)
                 }).addTo(map);
                 
                 // Add tile load error handler for debugging
@@ -133,9 +129,7 @@
                 // Fallback: Initialize map with default view
                 const map = L.map('map', {
                     center: [0, 0],
-                    zoom: 2,
-                    minZoom: 0,
-                    maxZoom: 18
+                    zoom: 2
                 });
                 
                 // Add OpenStreetMap
@@ -144,12 +138,13 @@
                     opacity: 0.3
                 }).addTo(map);
                 
-                // Add custom tiles
+                // Add custom tiles (TMS format - REQUIRED for gdal2tiles)
                 L.tileLayer(window.location.origin + '/{z}/{x}/{y}.png', {
-                    tms: false,
+                    tms: true,  // TMS format (inverted Y axis)
                     opacity: 1.0,
                     attribution: 'Custom Map',
-                    maxZoom: 18
+                    maxNativeZoom: 18,
+                    maxZoom: 25
                 }).addTo(map);
                 
                 console.log('Map initialized with fallback settings');

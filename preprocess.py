@@ -11,32 +11,53 @@ import os
 import subprocess
 import json
 import shutil
+import multiprocessing
 
 def convert_to_tiles(input_tif, output_dir='tiles'):
-    """Convert GeoTIFF to tiles using gdal2tiles."""
+    """Convert GeoTIFF to tiles using gdal2tiles with maximum performance."""
     print(f"Converting {input_tif} to tiles...")
     print(f"Output directory: {output_dir}")
     
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # Generate tiles using gdal2tiles with leaflet profile
-    print("Generating tiles (this may take a while)...")
+    # Get number of CPU cores for maximum parallelization
+    num_processes = multiprocessing.cpu_count()
+    print(f"Using {num_processes} CPU cores for processing")
+    
+    # Set up GDAL environment variables for maximum performance
+    env = os.environ.copy()
+    env['GDAL_CACHEMAX'] = '2048'  # 2GB cache
+    env['GDAL_NUM_THREADS'] = 'ALL_CPUS'  # Use all CPUs
+    env['GDAL_DISABLE_READDIR_ON_OPEN'] = 'EMPTY_DIR'  # Speed up opening
+    env['CPL_VSIL_CURL_ALLOWED_EXTENSIONS'] = '.tif,.tiff'
+    
+    # Generate tiles using gdal2tiles with optimized settings
+    print("Generating tiles with maximum speed...")
     
     gdal2tiles_cmd = [
         'gdal2tiles.py',
-        '--zoom=0-22',  # Zoom levels 0-22 for high resolution
-        '--processes=4',  # Use 4 processes for faster generation
+        '--zoom=10-22',  # Zoom levels 0-22 for high resolution
+        f'--processes={num_processes}',  # Use all available CPU cores
         '--webviewer=none',  # No web viewer (we have our own)
-        '--resampling=lanczos',  # High quality resampling
+        '--resampling=average',  # Faster resampling (average is much faster than lanczos)
+        '--tiledriver=PNG',  # Explicit PNG driver
+        '--xyz',  # Use XYZ tile scheme for better compatibility
         input_tif,
         output_dir
     ]
     
     try:
-        result = subprocess.run(gdal2tiles_cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            gdal2tiles_cmd, 
+            check=True, 
+            capture_output=True, 
+            text=True,
+            env=env
+        )
         print("Tiles generated successfully!")
-        print(result.stdout)
+        if result.stdout:
+            print(result.stdout)
         return True
     except subprocess.CalledProcessError as e:
         print(f"Error during tile generation: {e}")

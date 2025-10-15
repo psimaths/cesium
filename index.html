@@ -119,7 +119,7 @@
                 });
             });
         
-        function initializeViewer(metadata) {
+        async function initializeViewer(metadata) {
             // Use metadata directly (now has correct coordinates)
             const west = metadata.west;     // 122.01... (longitude)
             const south = metadata.south;   // 11.408... (latitude)
@@ -134,8 +134,10 @@
                 baseLayerPicker: false,  // No base layer picker (we're only using custom tiles)
                 imageryProvider: false,  // We'll add our custom provider manually
                 
-                // Terrain settings (flat terrain for now, ready for elevation data later)
-                terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+                // Terrain settings - using ArcGIS World Elevation (free, no token required)
+                terrainProvider: await Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+                    'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+                ),
                 
                 // UI controls
                 animation: false,  // No animation timeline
@@ -157,11 +159,16 @@
                 creditContainer: document.createElement('div'),  // Hide credits in custom div
             });
             
-            // Configure scene for better visuals
-            viewer.scene.globe.enableLighting = false;
+            // Configure scene for better visuals with terrain
+            viewer.scene.globe.enableLighting = true;  // Enable lighting to see terrain relief
+            viewer.scene.globe.depthTestAgainstTerrain = true;  // Proper depth testing with terrain
             viewer.scene.fog.enabled = true;
             viewer.scene.fog.density = 0.0001;
             
+            // Optional: Add vertical exaggeration to make terrain more visible
+            // Adjust this value (1.0 = no exaggeration, 2.0 = 2x height, etc.)
+            viewer.scene.verticalExaggeration = 2.0;
+
             // Customize camera controls for intuitive navigation
             const scene = viewer.scene;
             const camera = viewer.camera;

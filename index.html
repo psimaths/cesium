@@ -89,10 +89,11 @@
     </div>
     <div class="info-box">
         <strong>3D Navigation Controls</strong>
-        <div>🖱️ Drag: Pan/move map</div>
-        <div>⇧ Shift+Drag: Tilt view</div>
+        <div>🖱️ Left Drag: Pan/move map</div>
+        <div>⇧ Shift+Drag: Rotate view</div>
+        <div>🖱️ Right/Ctrl+Drag: Tilt view</div>
         <div>🔍 Scroll: Zoom in/out</div>
-        <div>📍 Double-click: Zoom to location</div>
+        <div>⌨️ Space: Reset to home view</div>
     </div>
     
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
@@ -100,7 +101,7 @@
         // No Cesium Ion token needed - we're only using custom tiles!
         
         // Load metadata.json for map bounds (with cache busting)
-        fetch('metadata.json?v=' + Date.now())
+        fetch('tiles/metadata.json?v=' + Date.now())
             .then(response => response.json())
             .then(metadata => {
                 console.log('Loaded metadata:', metadata);
@@ -166,33 +167,45 @@
             const camera = viewer.camera;
             const controller = scene.screenSpaceCameraController;
             
-            // Disable default mouse controls
-            controller.enableRotate = false;
-            controller.enableTranslate = false;
-            controller.enableZoom = true;  // Keep zoom
-            controller.enableTilt = false;
-            controller.enableLook = false;
-            
             // Configure custom mouse controls:
-            // - Left drag (no modifier) = Pan
-            // - Shift + left drag = Tilt/Rotate
+            // - Left drag (no modifier) = Pan/translate
+            // - Shift + left drag = Rotate/look around
+            // - Right drag or Ctrl + left drag = Tilt
             // - Scroll = Zoom
+            
+            // Keep zoom and translation enabled
+            controller.enableZoom = true;
+            controller.enableTranslate = true;
+            controller.enableLook = true;
+            controller.enableTilt = true;
+            controller.enableRotate = true;
+            
+            // Set up the event mappings - must use correct object syntax for modifiers
             controller.translateEventTypes = Cesium.CameraEventType.LEFT_DRAG;
-            controller.tiltEventTypes = [
-                Cesium.CameraEventType.LEFT_DRAG,
-                Cesium.CameraEventType.PINCH
-            ];
+            
             controller.lookEventTypes = {
                 eventType: Cesium.CameraEventType.LEFT_DRAG,
                 modifier: Cesium.KeyboardEventModifier.SHIFT
             };
             
-            // Re-enable the controls we want
-            controller.enableTranslate = true;  // Enable pan (left drag)
-            controller.enableLook = true;       // Enable tilt (shift + left drag)
-            controller.enableZoom = true;       // Keep scroll zoom
+            controller.tiltEventTypes = [
+                Cesium.CameraEventType.RIGHT_DRAG,
+                Cesium.CameraEventType.MIDDLE_DRAG,
+                {
+                    eventType: Cesium.CameraEventType.LEFT_DRAG,
+                    modifier: Cesium.KeyboardEventModifier.CTRL
+                }
+            ];
             
-            console.log('Custom camera controls enabled: Drag=Pan, Shift+Drag=Tilt');
+            controller.zoomEventTypes = [
+                Cesium.CameraEventType.WHEEL,
+                Cesium.CameraEventType.PINCH
+            ];
+            
+            // Enable keyboard controls (arrow keys, +/-, spacebar for stopping inertia)
+            controller.enableInputs = true;
+            
+            console.log('Custom camera controls enabled: Drag=Pan, Shift+Drag=Look, Right/Ctrl+Drag=Tilt');
             
             // Calculate bounds for custom tiles using corrected coordinates
             const rectangle = Cesium.Rectangle.fromDegrees(
@@ -205,7 +218,7 @@
             // Add custom imagery layer from our tiles
             // Using XYZ tile scheme (matches gdal2tiles --xyz output)
             const customImageryProvider = new Cesium.UrlTemplateImageryProvider({
-                url: window.location.origin + '/{z}/{x}/{y}.png',
+                url: window.location.origin + '/tiles/{z}/{x}/{y}.png',
                 tilingScheme: new Cesium.WebMercatorTilingScheme(),
                 rectangle: rectangle,  // Constrain to actual map bounds
                 minimumLevel: 10,
@@ -273,6 +286,23 @@
                 });
             });
             
+            // Add keyboard controls - Space to reset view
+            document.addEventListener('keydown', function(e) {
+                if (e.code === 'Space' && !e.repeat) {
+                    e.preventDefault();
+                    // Reset to home view
+                    viewer.camera.flyTo({
+                        destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, cameraHeight),
+                        orientation: {
+                            heading: Cesium.Math.toRadians(0),
+                            pitch: Cesium.Math.toRadians(-90),
+                            roll: 0.0
+                        },
+                        duration: 1.0  // 1 second animation
+                    });
+                }
+            });
+            
             console.log('Cesium viewer initialized successfully!');
             console.log(`Map bounds: [${west.toFixed(6)}, ${south.toFixed(6)}] to [${east.toFixed(6)}, ${north.toFixed(6)}]`);
             console.log(`Camera position: Lon=${centerLon.toFixed(6)}, Lat=${centerLat.toFixed(6)}, Height=${cameraHeight}m`);
@@ -286,7 +316,7 @@
         
         function loadContours(viewer) {
             // Try to load contours.json
-            fetch('contours.json?v=' + Date.now())
+            fetch('tiles/contours.json?v=' + Date.now())
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Contours file not found');

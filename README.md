@@ -100,10 +100,10 @@ python server.py 8000 tiles
 
 Then open your browser to:
 ```
-http://localhost:8000/viewer.html
+http://localhost:8000/
 ```
 
-The server starts instantly and just serves static files.
+The server starts instantly and just serves static files. For security, only tiles, JSON metadata, and the viewer are accessible - source code and configuration files are blocked.
 
 ## Map Controls
 
@@ -148,6 +148,42 @@ Edit `viewer.html` to customize:
 - UI controls
 - Styling
 - Contour line appearance (colors, widths, label intervals)
+
+## Security
+
+The server includes built-in security to prevent access to sensitive files:
+
+### Accessible Resources
+- ✅ `index.html` (viewer application)
+- ✅ `tiles/` directory (map tiles and metadata)
+- ✅ `terrain/` directory (terrain data)
+- ✅ `.png` files (tile images)
+- ✅ `.json` files (metadata and contours)
+
+### Blocked Resources
+- ❌ Python source files (`.py`)
+- ❌ Shell scripts (`.sh`)
+- ❌ Configuration files (`.txt`, `.gitignore`)
+- ❌ Source data files (`.tif`)
+- ❌ Documentation files (`.md`)
+- ❌ Git directory (`.git`)
+- ❌ Hidden files (`.DS_Store`, etc.)
+
+### Testing Security
+
+To verify security is working, run the test script:
+
+```bash
+# Start the server
+python server.py
+
+# In another terminal, test security
+./test_security.sh
+```
+
+You should see:
+- **200 OK** for allowed resources (index.html, tiles, etc.)
+- **403 Forbidden** for blocked resources (server.py, README.md, etc.)
 
 ## Troubleshooting
 

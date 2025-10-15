@@ -3,17 +3,41 @@
 Lightweight server to serve tiles and the CesiumJS viewer.
 This has minimal startup time and just serves static files.
 
-Usage: python server.py [port] [tiles_dir]
+Usage: python server.py [port]
 """
 
 import sys
 import os
-import json
-from http.server import HTTPServer, SimpleHTTPRequestHandler
 import socketserver
+from http.server import SimpleHTTPRequestHandler
+from urllib.parse import unquote
 
 class TileServerHandler(SimpleHTTPRequestHandler):
-    """Custom handler to serve tiles with proper CORS headers."""
+    """Custom handler to serve tiles with proper CORS headers and security restrictions."""
+    
+    def is_path_allowed(self, path):
+        """Check if a path should be allowed to be served."""
+        decoded_path = unquote(path).lstrip('/')
+        
+        # Allow root and index.html
+        if not decoded_path or decoded_path == 'index.html':
+            return True
+        
+        # Allow tiles and terrain directories
+        if decoded_path.startswith(('tiles/', 'terrain/')):
+            return True
+        
+        # Block everything else (Python files, shell scripts, docs, etc.)
+        return False
+    
+    def do_GET(self):
+        """Handle GET requests with security checks."""
+        if not self.is_path_allowed(self.path):
+            self.send_error(403, "Forbidden - Access to this resource is not allowed")
+            return
+        
+        # Path is allowed, proceed with normal handling
+        super().do_GET()
     
     def end_headers(self):
         # Enable CORS
@@ -31,24 +55,23 @@ class TileServerHandler(SimpleHTTPRequestHandler):
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    tiles_dir = sys.argv[2] if len(sys.argv) > 2 else 'tiles'
     
-    # Change to tiles directory
-    if os.path.exists(tiles_dir):
-        os.chdir(tiles_dir)
-    else:
-        print(f"Warning: Tiles directory '{tiles_dir}' not found!")
+    # Check if required files exist
+    if not os.path.exists('tiles'):
+        print("Error: tiles directory not found!")
         print("Please run preprocess.py first to generate tiles.")
-        print(f"Usage: python preprocess.py map.tif {tiles_dir}")
         sys.exit(1)
     
-    # Check if metadata exists
-    if not os.path.exists('metadata.json'):
+    if not os.path.exists('index.html'):
+        print("Warning: index.html not found.")
+    
+    if not os.path.exists('tiles/metadata.json'):
         print("Warning: metadata.json not found. The viewer may not center correctly.")
     
     print(f"Starting tile server on port {port}...")
-    print(f"Serving tiles from: {os.getcwd()}")
-    print(f"\nOpen the viewer at: http://localhost:{port}/viewer.html")
+    print(f"Serving from: {os.getcwd()}")
+    print(f"\nOpen the viewer at: http://localhost:{port}/")
+    print("🔒 Security: Only tiles/, terrain/, and index.html are accessible")
     print("Press Ctrl+C to stop the server.\n")
     
     try:

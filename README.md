@@ -9,6 +9,8 @@ A lightweight map server that efficiently serves large GeoTIFF files using Cesiu
 - Two-step process: preprocessing and serving
 - Minimal server startup time
 - Modern web-based viewer with CesiumJS
+- Topographic contour line overlay support
+- Interactive contour lines with elevation labels
 
 ## Prerequisites
 
@@ -52,7 +54,38 @@ This will:
 
 **Note:** This can take several minutes for large files (110MB) and up to an hour for very large files (20GB).
 
-### Step 2: Start the server
+### Step 2: Generate contour lines (optional)
+
+If you have a topographic/elevation GeoTIFF (DEM), you can generate contour lines to overlay on your map:
+
+```bash
+python3 generate_contours.py topo.tif [interval] [output.json]
+```
+
+Examples:
+```bash
+# Generate 10m contour intervals (default)
+python3 generate_contours.py topo.tif
+
+# Generate 5m contour intervals
+python3 generate_contours.py topo.tif 5
+
+# Custom output location
+python3 generate_contours.py topo.tif 10 tiles/contours.json
+```
+
+This will:
+- Extract contour lines from the elevation data
+- Create a GeoJSON file with elevation information
+- Store it in the tiles directory for serving
+
+The contour lines will automatically:
+- Display on the map with brown coloring
+- Show labels for major contours (every 50m)
+- Be toggleable via the map controls
+- Show elevation on click
+
+### Step 3: Start the server
 
 Once tiles are generated, start the lightweight server:
 
@@ -72,6 +105,14 @@ http://localhost:8000/viewer.html
 
 The server starts instantly and just serves static files.
 
+## Map Controls
+
+The viewer includes interactive controls:
+
+- **Contour Lines Toggle**: Show/hide topographic contour lines
+- **Navigation**: Mouse controls for pan, zoom, rotate, and tilt
+- **Info Box**: Click contour lines to see elevation data
+
 ## Performance
 
 - **110MB TIF**: Preprocessing takes ~5-10 minutes, serving is instant
@@ -84,8 +125,9 @@ The server starts instantly and just serves static files.
 When you need to update the map:
 
 1. Replace the TIF file
-2. Run the preprocessing script again: `python preprocess.py new_map.tif tiles`
-3. Restart the server (if it was running)
+2. Run the preprocessing script again: `python3 preprocess.py new_map.tif tiles`
+3. If you have elevation data, regenerate contours: `python3 generate_contours.py topo.tif`
+4. Restart the server (if it was running)
 
 The server itself doesn't need any reconfiguration.
 
@@ -105,6 +147,7 @@ Edit `viewer.html` to customize:
 - Camera position
 - UI controls
 - Styling
+- Contour line appearance (colors, widths, label intervals)
 
 ## Troubleshooting
 
@@ -120,4 +163,15 @@ Edit `viewer.html` to customize:
 **Out of memory during preprocessing:**
 - The preprocessing script streams data, so it shouldn't use much memory
 - If issues persist, reduce the maximum zoom level in `preprocess.py`
+
+**Contour lines not showing:**
+- Make sure `contours.json` exists in the tiles directory
+- Check browser console for loading errors
+- Verify the topo.tif has valid elevation data
+- Try regenerating with a larger contour interval: `python3 generate_contours.py topo.tif 20`
+
+**Too many or too few contours:**
+- Adjust the contour interval parameter
+- Lower interval (e.g., 5) = more contours, more detail
+- Higher interval (e.g., 20) = fewer contours, less cluttered
 

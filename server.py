@@ -20,6 +20,9 @@ class TileServerHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', '*')
+        # Ensure JSON files have correct content type
+        if self.path.endswith('.json'):
+            self.send_header('Content-Type', 'application/json')
         super().end_headers()
     
     def do_OPTIONS(self):

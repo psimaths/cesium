@@ -1,5 +1,5 @@
 GDAL>=3.0.0
-# Note: GDAL installation includes gdal2tiles.py and gdal_contour utilities
+# Note: GDAL installation includes gdal2tiles.py utility
 # On macOS: brew install gdal
 # On Ubuntu/Debian: sudo apt-get install gdal-bin python3-gdal
 # On Windows: Use OSGeo4W or conda: conda install -c conda-forge gdal

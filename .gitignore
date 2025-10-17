@@ -1,5 +1,6 @@
 tiles
+quantized-mesh-tile
 .DS_Store
 map.tif
-topo.tif
+heightmap.tif
 .venv

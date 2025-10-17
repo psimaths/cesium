@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Preprocessing script to convert a GeoTIFF into tiles for efficient serving.
-This should be run once when the map is updated.
+Preprocessing script to convert imagery and point cloud data for Cesium.
+This should be run once when the data is updated.
 
-Usage: python preprocess.py <input.tif> [output_dir]
+Usage: python preprocess.py <map.tif> <points.laz> [output_dir]
+   or: python preprocess.py <map.tif> [output_dir]  (tiles only)
 """
 
 import sys
@@ -181,19 +182,149 @@ def create_metadata(bounds, output_dir):
     print(f"  East: {bounds['east']:.6f}°")
     print(f"  North: {bounds['north']:.6f}°")
 
+def convert_pointcloud_to_heightmap(input_laz, output_tif='cesiumionheightmap.tif', resolution=0.5):
+    """Convert LAZ point cloud to georeferenced GeoTIFF heightmap for Cesium ion."""
+    print(f"\n{'='*60}")
+    print("Converting point cloud to Cesium ion heightmap...")
+    print(f"{'='*60}")
+    print(f"Input: {input_laz}")
+    print(f"Output: {output_tif}")
+    print(f"Resolution: {resolution}m per pixel")
+    
+    # Check if PDAL is available
+    try:
+        subprocess.run(['pdal', '--version'], check=True, capture_output=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("\nError: PDAL is not installed!")
+        print("Install it with: brew install pdal")
+        return False
+    
+    # Get point cloud info
+    print("\nExamining point cloud metadata...")
+    try:
+        result = subprocess.run(
+            ['pdal', 'info', input_laz, '--summary'],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        info = json.loads(result.stdout)
+        bounds = info['summary']['bounds']
+        count = info['summary']['num_points']
+        
+        print(f"  Points: {count:,}")
+        print(f"  X range: {bounds['minx']:.2f} - {bounds['maxx']:.2f}")
+        print(f"  Y range: {bounds['miny']:.2f} - {bounds['maxy']:.2f}")
+        print(f"  Z range: {bounds['minz']:.2f} - {bounds['maxz']:.2f}m")
+        
+        # Calculate output raster dimensions
+        width = int((bounds['maxx'] - bounds['minx']) / resolution)
+        height = int((bounds['maxy'] - bounds['miny']) / resolution)
+        print(f"  Output size: {width} x {height} pixels")
+        
+    except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
+        print(f"Warning: Could not read point cloud metadata: {e}")
+    
+    # Convert LAZ to GeoTIFF using PDAL
+    print("\nConverting to georeferenced GeoTIFF...")
+    pdal_cmd = [
+        'pdal', 'translate', input_laz, output_tif,
+        f'--writers.gdal.resolution={resolution}',
+        '--writers.gdal.output_type=mean',
+        '--writers.gdal.data_type=float32'
+    ]
+    
+    try:
+        result = subprocess.run(
+            pdal_cmd,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print("✓ Heightmap created successfully!")
+        
+        # Verify the output has proper georeferencing
+        verify_result = subprocess.run(
+            ['gdalinfo', output_tif],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        
+        if 'Coordinate System is:' in verify_result.stdout and 'EPSG' in verify_result.stdout:
+            print("✓ Georeferencing verified - ready for Cesium ion!")
+            
+            # Get file size
+            size_mb = os.path.getsize(output_tif) / (1024 * 1024)
+            print(f"✓ File size: {size_mb:.2f} MB")
+            return True
+        else:
+            print("⚠ Warning: Output file may be missing spatial reference")
+            return False
+            
+    except subprocess.CalledProcessError as e:
+        print(f"Error during conversion: {e}")
+        if e.stderr:
+            print(f"Details: {e.stderr}")
+        return False
+
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python preprocess.py <input.tif> [output_dir]")
+        print("Usage:")
+        print("  python preprocess.py <map.tif> <points.laz> [output_dir]")
+        print("  python preprocess.py <map.tif> [output_dir]  (tiles only)")
+        print("\nExample:")
+        print("  python preprocess.py map.tif points.laz tiles")
         sys.exit(1)
 
     input_tif = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else 'tiles'
-
+    
+    # Determine if we have point cloud data
+    points_laz = None
+    output_dir = 'tiles'
+    
+    if len(sys.argv) >= 3:
+        # Check if second argument is a LAZ file or output directory
+        if sys.argv[2].endswith('.laz'):
+            points_laz = sys.argv[2]
+            output_dir = sys.argv[3] if len(sys.argv) > 3 else 'tiles'
+        else:
+            output_dir = sys.argv[2]
+    
+    # Validate input files
     if not os.path.exists(input_tif):
         print(f"Error: {input_tif} not found")
         sys.exit(1)
+    
+    if points_laz and not os.path.exists(points_laz):
+        print(f"Error: {points_laz} not found")
+        sys.exit(1)
 
-    # Extract bounds from input GeoTIFF
+    print("="*60)
+    print("CESIUM DATA PREPROCESSING")
+    print("="*60)
+    print(f"Map imagery: {input_tif}")
+    if points_laz:
+        print(f"Point cloud: {points_laz}")
+    print(f"Output directory: {output_dir}")
+    print("="*60)
+
+    all_success = True
+    heightmap_created = False
+
+    # Step 1: Convert point cloud to heightmap if provided
+    if points_laz:
+        heightmap_success = convert_pointcloud_to_heightmap(points_laz, 'cesiumionheightmap.tif')
+        if heightmap_success:
+            heightmap_created = True
+        else:
+            print("⚠ Warning: Heightmap creation failed")
+            all_success = False
+
+    # Step 2: Extract bounds from input GeoTIFF
+    print(f"\n{'='*60}")
+    print("Processing imagery tiles...")
+    print(f"{'='*60}")
     bounds = extract_bounds(input_tif)
 
     if bounds is None:
@@ -201,29 +332,44 @@ def main():
         print("Please ensure GDAL is properly installed (pip install gdal)")
         sys.exit(1)
 
-    # Convert to tiles
+    # Step 3: Convert to tiles
     success = convert_to_tiles(input_tif, output_dir)
 
     if success:
         # Create metadata.json with extracted bounds
         create_metadata(bounds, output_dir)
 
-        # Copy viewer.html to the output directory
-        viewer_src = 'viewer.html'
-        viewer_dst = os.path.join(output_dir, 'viewer.html')
-        if os.path.exists(viewer_src):
-            shutil.copy2(viewer_src, viewer_dst)
-            print(f"Copied viewer.html to {output_dir}")
-        else:
-            print("Warning: viewer.html not found in current directory")
-
-        print("\n" + "="*60)
-        print("Preprocessing complete!")
-        print(f"Tiles are stored in: {output_dir}")
-        print("You can now start the server with: python server.py")
-        print("="*60)
+       
     else:
-        print("Preprocessing failed!")
+        print("Tile generation failed!")
+        all_success = False
+
+    # Final summary
+    print("\n" + "="*60)
+    print("PREPROCESSING COMPLETE!")
+    print("="*60)
+    
+    if success:
+        print(f"✓ Map tiles stored in: {output_dir}")
+        print("  → Start server: python server.py")
+    
+    if heightmap_created:
+        print(f"✓ Cesium ion heightmap: cesiumionheightmap.tif")
+        print("\n" + "─"*60)
+        print("NEXT STEPS - Upload to Cesium ion:")
+        print("─"*60)
+        print("1. Go to https://ion.cesium.com/")
+        print("2. Click 'Add data' and select: cesiumionheightmap.tif")
+        print("3. Choose these settings:")
+        print("   - Kind of data: 'Raster Terrain'")
+        print("   - Height unit: 'Meters'")
+        print("   - Height reference: 'Mean sea level'")
+        print("4. Click 'Upload'")
+        print("5. Once processed, update your Cesium ion web application")
+    
+    print("="*60)
+    
+    if not all_success:
         sys.exit(1)
 
 if __name__ == '__main__':

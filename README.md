@@ -5,6 +5,7 @@ A lightweight map server that efficiently serves large GeoTIFF files using Cesiu
 ## Features
 
 - Handles large GeoTIFF files (tested up to 20GB+)
+- Converts point cloud (LAZ) to georeferenced heightmap for Cesium ion
 - Efficient tile-based serving - only loads visible tiles
 - Two-step process: preprocessing and serving
 - Minimal server startup time
@@ -12,7 +13,19 @@ A lightweight map server that efficiently serves large GeoTIFF files using Cesiu
 
 ## Prerequisites
 
-Install the required dependencies:
+### Quick Setup (Recommended)
+
+Run the automated setup script:
+
+```bash
+./setup.sh
+```
+
+This will automatically install GDAL, PDAL, and Python dependencies on macOS or Linux.
+
+### Manual Installation
+
+If you prefer to install manually:
 
 ```bash
 # Install GDAL (required for tile generation)
@@ -25,34 +38,80 @@ sudo apt-get install gdal-bin python3-gdal
 # On Windows:
 # Download from https://www.gisinternals.com/
 
+# Install PDAL (required for point cloud processing)
+# On macOS:
+brew install pdal
+
+# On Ubuntu/Debian:
+sudo apt-get install pdal
+
 # Install Python dependencies
 pip install -r requirements.txt
 ```
 
 ## Usage
 
-### Step 1: Preprocess the TIF file (one-time operation)
+### Step 1: Preprocess your data (one-time operation)
 
-This step converts your GeoTIFF into tiles. Run this whenever you update the map:
+This step converts your imagery and point cloud data. Run this whenever you update the data:
 
+**For imagery tiles + Cesium ion terrain:**
 ```bash
-python preprocess.py map.tif [output_dir]
+python3 preprocess.py map.tif points.laz [output_dir]
+```
+
+**For imagery tiles only:**
+```bash
+python3 preprocess.py map.tif [output_dir]
 ```
 
 Example:
 ```bash
-python preprocess.py map.tif tiles
+python3 preprocess.py map.tif points.laz tiles
 ```
 
 This will:
-- Reproject the TIF to Web Mercator (EPSG:3857)
-- Generate tiles at zoom levels 0-18
+- Convert point cloud (LAZ) to georeferenced heightmap (cesiumionheightmap.tif)
+- Generate imagery tiles at zoom levels 10-22
 - Create metadata for the viewer
 - Store everything in the `tiles` directory
 
+**Output:**
+- `cesiumionheightmap.tif` - Ready to upload to Cesium ion
+- `tiles/` - Map imagery tiles for local serving
+
 **Note:** This can take several minutes for large files (110MB) and up to an hour for very large files (20GB).
 
-### Step 2: Start the server
+### Step 2: Upload terrain to Cesium ion (if you generated heightmap)
+
+If you created a heightmap from point cloud data:
+
+**A. Upload to Cesium ion:**
+
+1. Go to [Cesium ion](https://ion.cesium.com/)
+2. Click **"Add data"** and select `cesiumionheightmap.tif`
+3. Choose these settings:
+   - **Kind of data**: "Raster Terrain"
+   - **Height unit**: "Meters"
+   - **Height reference**: "Mean sea level"
+4. Click **"Upload"**
+5. Wait for processing to complete (usually a few minutes)
+6. Copy the **Asset ID** from the asset details page
+
+**B. Update script.js:**
+
+Open `script.js` and find the CONFIG section at the top (lines 1-9):
+
+```javascript
+const CONFIG = {
+    CESIUM_ION_ACCESS_TOKEN: 'your-token-here',
+    TERRAIN_ASSET_ID: 3925137  // ← Update this
+};
+```
+
+Replace `3925137` with your new Asset ID from Cesium ion.
+
+### Step 3: Start the server
 
 Once tiles are generated, start the lightweight server:
 
@@ -79,13 +138,17 @@ The server starts instantly and just serves static files. For security, only til
 - Viewer only loads tiles for the visible area and zoom level
 - No need to load the entire file into memory
 
-## Updating the Map
+## Updating the Data
 
-When you need to update the map:
+When you need to update the map or terrain:
 
-1. Replace the TIF file
-2. Run the preprocessing script again: `python3 preprocess.py new_map.tif tiles`
-3. Restart the server (if it was running)
+1. Replace the TIF and/or LAZ files
+2. Run the preprocessing script again: `python3 preprocess.py map.tif points.laz tiles`
+3. If terrain changed:
+   - Upload the new `cesiumionheightmap.tif` to Cesium ion
+   - Get the new Asset ID
+   - Update `script.js` line 8 (TERRAIN_ASSET_ID) with the new Asset ID
+4. Restart the server (if it was running)
 
 The server itself doesn't need any reconfiguration.
 
@@ -100,11 +163,14 @@ Edit `preprocess.py` to modify:
 
 ### Adjust viewer settings
 
-Edit `index.html` to customize:
+Edit `script.js` to customize:
 - Base map layers
 - Camera position
 - UI controls
-- Styling
+
+Edit `index.html` to customize:
+- Page styling
+- Info box content
 
 ## Security
 

@@ -1,6 +1,6 @@
 tiles
-quantized-mesh-tile
+.venv
 .DS_Store
 map.tif
-heightmap.tif
-.venv
+cesiumionheightmap.tif
+points.laz

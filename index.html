@@ -262,23 +262,7 @@
                 }
             });
             
-            // Add a rectangle entity to show coverage area
-            viewer.entities.add({
-                name: 'Custom Map Coverage Area',
-                rectangle: {
-                    coordinates: rectangle,
-                    material: Cesium.Color.ORANGE.withAlpha(0.0),
-                    outline: true,
-                    outlineColor: Cesium.Color.ORANGE,
-                    outlineWidth: 2,
-                    height: 0
-                },
-                description: `<p>Custom Map Coverage</p>
-                    <p>West: ${west.toFixed(6)}°</p>
-                    <p>South: ${south.toFixed(6)}°</p>
-                    <p>East: ${east.toFixed(6)}°</p>
-                    <p>North: ${north.toFixed(6)}°</p>`
-            });
+           
             
             // Set home view to our custom area
             viewer.homeButton.viewModel.command.beforeExecute.addEventListener(function(e) {
